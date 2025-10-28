@@ -1,0 +1,63 @@
+CREATE TABLE o_roll_call (
+    roll_no int PRIMARY KEY,
+    student_name VARCHAR(50),
+    attendance_date DATE
+);
+
+CREATE TABLE n_roll_call (
+    roll_no int PRIMARY KEY,
+    student_name VARCHAR(50),
+    attendance_date DATE
+);
+
+
+DECLARE
+    -- Parameterized cursor: takes roll number as parameter
+    CURSOR c_new_rolls(p_roll_no n_roll_call.roll_no%TYPE) IS
+        SELECT roll_no, student_name, attendance_date
+        FROM n_roll_call
+        WHERE roll_no = p_roll_no;
+
+    v_roll_no        n_roll_call.roll_no%TYPE;
+    v_student_name   n_roll_call.student_name%TYPE;
+    v_attendance_date n_roll_call.attendance_date%TYPE;
+
+BEGIN
+    -- Outer cursor to loop through all records of new roll call
+    FOR rec IN (SELECT roll_no FROM n_roll_call) LOOP
+        
+        -- Check if this roll_no already exists in old table
+        DECLARE
+            v_count NUMBER;
+        BEGIN
+            SELECT COUNT(*) INTO v_count
+            FROM o_roll_call
+            WHERE roll_no = rec.roll_no;
+
+            -- If record does not exist, insert it
+            IF v_count = 0 THEN
+                -- Use parameterized cursor to get the record details
+                OPEN c_new_rolls(rec.roll_no);
+                FETCH c_new_rolls INTO v_roll_no, v_student_name, v_attendance_date;
+                
+                INSERT INTO o_roll_call (roll_no, student_name, attendance_date)
+                VALUES (v_roll_no, v_student_name, v_attendance_date);
+                
+                CLOSE c_new_rolls;
+            ELSE
+                DBMS_OUTPUT.PUT_LINE('Roll number ' || rec.roll_no || ' already exists — skipped.');
+            END IF;
+        END;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Data merge complete.');
+
+END;
+/
+MERGE INTO o_roll_call o
+USING n_roll_call n
+ON (o.roll_no = n.roll_no)
+WHEN NOT MATCHED THEN
+  INSERT (roll_no, student_name, attendance_date)
+  VALUES (n.roll_no, n.student_name, n.attendance_date);
+
